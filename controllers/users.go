@@ -6,15 +6,15 @@ import (
 
 	"github.com/javing77/Go_RestAPI_Mongo/models"
 	"github.com/julienschmidt/httprouter"
-	"gopkg.in/mgo.v2"
+	"go.mongodb.org/mongo-driver/mongo"
 	"gopkg.in/mgo.v2/bson"
 )
 
 type UserController struct {
-	session *mgo.Session
+	session *mongo.Collection
 }
 
-func NewUserController(s *mgo.Session) *UserController {
+func NewUserController(s *mongo.Collection) *UserController {
 	return &UserController{s}
 }
 
@@ -30,8 +30,9 @@ func (uc UserController) GetUser(w http.ResponseWriter, r *http.Request, p httpr
 
 	u := models.User{}
 
-	if err := uc.session.DB("mong-golang").C("users").FindId(oid).One(&u); err != nil {
-		w.WriteHeader(404)
+	// find the id in mongo using mongo-driver
+	if err := uc.session.FindOne(r.Context(), bson.M{"_id": oid}).Decode(&u); err != nil {
+		w.WriteHeader(http.StatusNotFound) // 404
 		return
 	}
 
@@ -53,7 +54,9 @@ func (uc UserController) CreateUser(w http.ResponseWriter, r *http.Request, _ ht
 
 	u.Id = bson.NewObjectId()
 
-	uc.session.DB("mong-golang").C("users").Insert(u)
+	// insert the user in mongo using mongo-driver
+	uc.session.InsertOne(r.Context(), u)
+	// uc.session.DB("mong-golang").C("users").Insert(u)
 
 	js, err := json.Marshal(u)
 	if err != nil {
@@ -76,7 +79,8 @@ func (uc UserController) DeleteUser(w http.ResponseWriter, r *http.Request, p ht
 
 	oid := bson.ObjectIdHex(id)
 
-	if err := uc.session.DB("mong-golang").C("users").RemoveId(oid); err != nil {
+	// delete the user in mongo using mongo-driver
+	if err := uc.session.FindOneAndDelete(r.Context(), bson.M{"_id": oid}).Decode(&models.User{}); err != nil {
 		w.WriteHeader(404)
 		return
 	}
